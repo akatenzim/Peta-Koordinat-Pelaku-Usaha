@@ -1,7 +1,5 @@
-/* ==== UTIL ==== */
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-const SUDAH = 'Sudah diawasi';
 const PAGE = 100;
 
 const UPT_COLORS = {
@@ -11,6 +9,7 @@ const UPT_COLORS = {
   'PANGKALAN PSDKP BATAM':'#6366f1','PANGKALAN PSDKP BENOA':'#10b981','PANGKALAN PSDKP BITUNG':'#e11d48',
   'PANGKALAN PSDKP JAKARTA':'#8b5cf6','PANGKALAN PSDKP LAMPULO':'#0ea5e9','PANGKALAN PSDKP TUAL':'#ea580c'
 };
+
 const norm = s => String(s || '').trim().replace(/\s+/g, ' ').toUpperCase();
 const uptColor = n => UPT_COLORS[norm(n)] || '#64748b';
 const uptType = n => /stasiun/i.test(n) ? 'Stasiun PSDKP' : /pangkalan/i.test(n) ? 'Pangkalan PSDKP' : 'UPT PSDKP';
@@ -22,55 +21,31 @@ function toast(msg, err = false, ms = 3500) {
   clearTimeout(toastTimer); if (ms) toastTimer = setTimeout(() => t.className = '', ms);
 }
 
-/* ==== PETA ==== */
 const map = L.map('map', { center: [-2.5, 118], zoom: 5, zoomControl: true, preferCanvas: true });
-const carto = (v, n) => L.tileLayer(`https://{s}.basemaps.cartocdn.com/${v}/{z}/{x}/{y}{r}.png`, { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 });
-const dark = carto('dark_all').addTo(map);
+const carto = (v) => L.tileLayer(`https://{s}.basemaps.cartocdn.com/${v}/{z}/{x}/{y}{r}.png`, { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 });
+carto('dark_all').addTo(map);
+
 const baseMaps = {
-  'Gelap (Esri Dark)': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Tiles &copy; Esri',
-    maxZoom: 16
-  }),
+  'Gelap (Esri Dark)': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri', maxZoom: 16 }),
   'Satelit + Label (Esri)': L.layerGroup([
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri' }),
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}')
   ]),
   'Peta jalan (OpenStreetMap)': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }),
-  'Terang (Esri Light)': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Tiles &copy; Esri',
-    maxZoom: 16
-  }),
+  'Terang (Esri Light)': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri', maxZoom: 16 }),
   'Topografi (Esri)': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri' })
 };
 
-/* 3 Lapisan Heatmap Terpisah (Masing-masing 1 warna solid murni dengan efek blur) */
-const greenHeatLayer = L.heatLayer([], {
-  radius: 25, blur: 15, maxZoom: 12, minOpacity: 0.60, max: 1.0,
-  gradient: { 0.0: 'transparent', 0.5: '#34d399', 1.0: '#34d399' }
-});
+const greenHeatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 12, minOpacity: 0.60, max: 1.0, gradient: { 0.0: 'transparent', 0.5: '#34d399', 1.0: '#34d399' } });
+const yellowHeatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 12, minOpacity: 0.60, max: 1.0, gradient: { 0.0: 'transparent', 0.5: '#facc15', 1.0: '#facc15' } });
+const redHeatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 12, minOpacity: 0.60, max: 1.0, gradient: { 0.0: 'transparent', 0.5: '#ef4444', 1.0: '#ef4444' } });
 
-const yellowHeatLayer = L.heatLayer([], {
-  radius: 25, blur: 15, maxZoom: 12, minOpacity: 0.60, max: 1.0,
-  gradient: { 0.0: 'transparent', 0.5: '#facc15', 1.0: '#facc15' }
-});
-
-const redHeatLayer = L.heatLayer([], {
-  radius: 25, blur: 15, maxZoom: 12, minOpacity: 0.60, max: 1.0,
-  gradient: { 0.0: 'transparent', 0.5: '#ef4444', 1.0: '#ef4444' }
-});
-
-// Gabungkan ke dalam 1 Group untuk toggle layer control
 const heatGroup = L.layerGroup([greenHeatLayer, yellowHeatLayer, redHeatLayer]).addTo(map);
 
-/* FUNGSI DINAMIS SKALA HEATMAP BERDASARKAN ZOOM LEVEL */
 function updateHeatmapOptions() {
   const z = map.getZoom();
-  let dynamicRadius = 10 + (z - 5) * 4; 
-  let dynamicBlur = 10 + (z - 5) * 3;
-
-  dynamicRadius = Math.max(10, Math.min(dynamicRadius, 35));
-  dynamicBlur = Math.max(10, Math.min(dynamicBlur, 25));
-
+  let dynamicRadius = Math.max(10, Math.min(10 + (z - 5) * 4, 35));
+  let dynamicBlur = Math.max(10, Math.min(10 + (z - 5) * 3, 25));
   const opts = { radius: dynamicRadius, blur: dynamicBlur };
   greenHeatLayer.setOptions(opts);
   yellowHeatLayer.setOptions(opts);
@@ -90,7 +65,6 @@ L.control.layers(baseMaps, {
   '🏢 Wilayah UPT PSDKP': uptGroup
 }, { position: 'topright', collapsed: window.innerWidth <= 768 }).addTo(map);
 
-/* ==== LAYER GEOJSON (dimuat saat dibutuhkan) ==== */
 function popupFromProps(props, title) {
   const rows = Object.entries(props || {})
     .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
@@ -114,21 +88,21 @@ function loadGeo(key, url, group, label, makeLayer) {
   toast(`Memuat ${label}…`, false, 0);
   fetch(url)
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(data => { group.addLayer(makeLayer(data)); toast(`${label} berhasil dimuat`); })
+    .then(resData => { group.addLayer(makeLayer(resData)); toast(`${label} berhasil dimuat`); })
     .catch(e => {
       console.error(e); loaders[key] = false;
-      toast(`${label} gagal dimuat (${e.message}). Pastikan ${url} ada di root repository.`, true, 6000);
+      toast(`${label} gagal dimuat (${e.message}).`, true, 6000);
     });
 }
 
-const loadGarpan = () => loadGeo('garpan', 'garpan_web_simplified_05.geojson', garpanGroup, 'Garis pantai (±16 MB)',
-  data => L.geoJSON(data, {
+const loadGarpan = () => loadGeo('garpan', 'garpan_web_simplified_05.geojson', garpanGroup, 'Garis pantai',
+  resData => L.geoJSON(resData, {
     style: { color: '#0284c7', weight: 1.2, opacity: .85 },
     onEachFeature: (f, l) => l.bindPopup(popupFromProps(f.properties, 'Garis Pantai Indonesia (Garpan)'))
   }));
 
 const loadUPT = () => loadGeo('upt', 'upt_psdkp_web.geojson', uptGroup, 'Wilayah UPT PSDKP',
-  data => L.geoJSON(data, {
+  resData => L.geoJSON(resData, {
     style: f => { const c = uptColor(getUPTName(f.properties)); return { color: c, fillColor: c, weight: 2, opacity: .95, fillOpacity: .14 }; },
     onEachFeature: (f, l) => { const n = getUPTName(f.properties); l.bindPopup(popupFromProps(f.properties, `${uptType(n)} — ${n}`)); }
   }));
@@ -136,21 +110,29 @@ const loadUPT = () => loadGeo('upt', 'upt_psdkp_web.geojson', uptGroup, 'Wilayah
 uptGroup.addTo(map); loadUPT();
 map.on('overlayadd', e => { if (e.layer === garpanGroup) loadGarpan(); if (e.layer === uptGroup) loadUPT(); });
 
-/* ==== DATA ==== */
 const validCoord = d => Number.isFinite(+d.lat) && Number.isFinite(+d.lng) && +d.lat >= -12 && +d.lat <= 7 && +d.lng >= 94 && +d.lng <= 142;
-const data = rawData.map((d, i) => ({ ...d, _id: i, lat: +d.lat, lng: +d.lng, _ok: validCoord(d),
-  _hay: `${d.nama} ${d.lokasi} ${d.indikasi}`.toLowerCase() }));
 
+let data = [];
 const state = { q: '', upt: '', status: '' };
 let filtered = [], shown = 0;
 const markers = new Map();
 
-[...new Set(data.map(d => d.upt).filter(Boolean))].sort().forEach(u => {
-  const o = document.createElement('option'); o.value = u; o.textContent = u; $('f-upt').appendChild(o);
-});
+function getStatusBadgeClass(status) {
+  const s = status.toLowerCase();
+  if (s.includes('sudah')) return 'b-ok';
+  if (s.includes('proses')) return 'b-process';
+  return 'b-no';
+}
+
+function getStatusRingColor(status) {
+  const s = status.toLowerCase();
+  if (s.includes('sudah')) return '#34d399'; // Hijau
+  if (s.includes('proses')) return '#60a5fa'; // Biru
+  return '#f97316'; // Oranye
+}
 
 function makeMarker(d) {
-  const ring = d.status === SUDAH ? '#34d399' : '#f97316';
+  const ring = getStatusRingColor(d.status);
   const m = L.circleMarker([d.lat, d.lng], { radius: 6, fillColor: uptColor(d.upt), color: ring, weight: 2, opacity: 1, fillOpacity: .9 });
   m.bindPopup(`<div style="font-family:'Plus Jakarta Sans',sans-serif;min-width:230px;max-width:320px">
     <h3 style="font-size:.9rem;margin-bottom:6px;color:#0f172a;border-bottom:2px solid #38bdf8;padding-bottom:4px">${esc(d.nama)}</h3>
@@ -171,16 +153,18 @@ function renderList(reset) {
   ul.querySelector('.more-li')?.remove();
 
   if (!filtered.length) {
-    ul.innerHTML = `<li class="empty">${data.length ? 'Tidak ada lokasi yang cocok. Ubah kata kunci atau reset filter.' : 'Belum ada data. Isi <code>rawData</code> pada kode sumber.'}</li>`;
+    ul.innerHTML = `<li class="empty">${data.length ? 'Tidak ada lokasi yang cocok.' : 'Memuat data atau data kosong.'}</li>`;
     return;
   }
   const frag = document.createDocumentFragment();
   filtered.slice(shown, shown + PAGE).forEach(d => {
     const li = document.createElement('li');
     li.className = 'item'; li.tabIndex = 0; li.dataset.id = d._id;
-    li.innerHTML = `<h4><span class="dot" style="background:${uptColor(d.upt)};border-color:${d.status === SUDAH ? '#34d399' : '#f97316'}"></span>${esc(d.nama)}</h4>
+    const badgeClass = getStatusBadgeClass(d.status);
+    const ringColor = getStatusRingColor(d.status);
+    li.innerHTML = `<h4><span class="dot" style="background:${uptColor(d.upt)};border-color:${ringColor}"></span>${esc(d.nama)}</h4>
       <p>${esc(d.lokasi)}${d._ok ? '' : ' · koordinat tidak valid'}</p>
-      <span class="badge ${d.status === SUDAH ? 'b-ok' : 'b-no'}">${esc(d.status)}</span>`;
+      <span class="badge ${badgeClass}">${esc(d.status)}</span>`;
     frag.appendChild(li);
   });
   shown = Math.min(shown + PAGE, filtered.length);
@@ -194,14 +178,21 @@ function renderList(reset) {
 
 function render() {
   const q = state.q.trim().toLowerCase();
-  filtered = data.filter(d => (!q || d._hay.includes(q)) && (!state.upt || d.upt === state.upt) && (!state.status || d.status === state.status));
+  filtered = data.filter(d => {
+    const matchQ = !q || d._hay.includes(q);
+    const matchUpt = !state.upt || d.upt === state.upt;
+    let matchStatus = true;
+    if (state.status) {
+      matchStatus = d.status.toLowerCase().includes(state.status.toLowerCase());
+    }
+    return matchQ && matchUpt && matchStatus;
+  });
 
   const plotted = filtered.filter(d => d._ok);
   clusterGroup.clearLayers(); markers.clear();
   const ms = plotted.map(d => { const m = makeMarker(d); markers.set(d._id, m); return m; });
   clusterGroup.addLayers(ms);
 
-  /* Agregasi grid regional dan distribusi ke 3 lapisan warna terpisah */
   const cellMap = new Map();
   plotted.forEach(d => {
     const cx = Math.floor((d.lng * 111.32) / 15);
@@ -214,22 +205,14 @@ function render() {
     cell.count += 1;
   });
 
-  const greenPoints = [];
-  const yellowPoints = [];
-  const redPoints = [];
-
+  const greenPoints = [], yellowPoints = [], redPoints = [];
   cellMap.forEach(cell => {
     if (cell.count >= 5) {
       const lat = cell.sumLat / cell.count;
       const lng = cell.sumLng / cell.count;
-      
-      if (cell.count > 15) {
-        redPoints.push([lat, lng, 1.0]);    // Kategori Tinggi (>15 titik) -> Merah Solid
-      } else if (cell.count >= 10) {
-        yellowPoints.push([lat, lng, 1.0]); // Kategori Sedang (10–15 titik) -> Kuning Solid
-      } else {
-        greenPoints.push([lat, lng, 1.0]);  // Kategori Rendah (5–10 titik) -> Hijau Solid
-      }
+      if (cell.count > 15) redPoints.push([lat, lng, 1.0]);
+      else if (cell.count >= 10) yellowPoints.push([lat, lng, 1.0]);
+      else greenPoints.push([lat, lng, 1.0]);
     }
   });
 
@@ -238,30 +221,34 @@ function render() {
   redHeatLayer.setLatLngs(redPoints);
   updateHeatmapOptions();
 
-  const ok = filtered.filter(d => d.status === SUDAH).length;
-  $('n-total').textContent = filtered.length;
-  $('n-ok').textContent = ok;
-  $('n-no').textContent = filtered.length - ok;
+  const countSudah = filtered.filter(d => d.status.toLowerCase().includes('sudah')).length;
+  const countProses = filtered.filter(d => d.status.toLowerCase().includes('proses')).length;
+  const countBelum = filtered.filter(d => d.status.toLowerCase().includes('belum')).length;
+
+  // Update nilai pada card statistik baru
+  if ($('n-sudah')) $('n-sudah').textContent = countSudah;
+  if ($('n-proses')) $('n-proses').textContent = countProses;
+  if ($('n-belum')) $('n-belum').textContent = countBelum;
+
   $('n-show').textContent = filtered.length;
 
   const uptCountData = data.filter(d => !state.upt || d.upt === state.upt);
   $('n-upt-pelaku').textContent = uptCountData.length;
 
-  const pct = filtered.length ? Math.round(ok / filtered.length * 100) : 0;
+  const pct = filtered.length ? Math.round((countSudah / filtered.length) * 100) : 0;
   $('bar').style.width = pct + '%';
   const skipped = filtered.length - plotted.length;
-  $('bar-note').textContent = filtered.length ? `${pct}% sudah diawasi${skipped ? ` · ${skipped} titik tanpa koordinat valid tidak dipetakan` : ''}` : '';
+  $('bar-note').textContent = filtered.length ? `${pct}% sudah penetapan sanksi${skipped ? ` · ${skipped} titik tanpa koordinat valid` : ''}` : '';
   renderList(true);
 }
 
 function focusItem(id) {
-  const d = data[id], m = markers.get(id);
+  const d = data.find(item => item._id === id), m = markers.get(id);
   if (!d || !m) { toast('Titik ini tidak memiliki koordinat valid.', true); return; }
   if (innerWidth <= 768) closeSidebar();
   clusterGroup.zoomToShowLayer(m, () => { map.setView([d.lat, d.lng], Math.max(map.getZoom(), 12)); m.openPopup(); });
 }
 
-/* ==== EVENT ==== */
 let deb;
 $('q').addEventListener('input', e => { clearTimeout(deb); deb = setTimeout(() => { state.q = e.target.value; render(); }, 200); });
 $('f-upt').addEventListener('change', e => { state.upt = e.target.value; render(); });$('f-status').addEventListener('click', e => {
@@ -285,7 +272,6 @@ function openSidebar() { sb.classList.add('open'); sb.classList.remove('collapse
 $('sb-close').addEventListener('click', closeSidebar);$('sb-open').addEventListener('click', openSidebar);
 if (innerWidth <= 768) { sb.classList.remove('open'); }
 
-/* ==== LEGENDA ==== */
 const legend = L.control({ position: 'bottomright' });
 legend.onAdd = () => {
   const wrap = L.DomUtil.create('div', 'legend-wrap');
@@ -297,15 +283,15 @@ legend.onAdd = () => {
     `<div class="lg"><span class="sw" style="background:${UPT_COLORS[k]};border-color:${UPT_COLORS[k]}"></span>${esc(titleCase(k))}</div>`).join('');
   panel.innerHTML = `
     <div class="legend-sec"><h5>Hotspot Pengawasan</h5>
-      <div class="lg"><span class="sw" style="border-color:#34d399"></span>Garis tepi hijau: sudah diawasi</div>
-      <div class="lg"><span class="sw" style="border-color:#f97316"></span>Garis tepi oranye: belum diawasi</div>
+      <div class="lg"><span class="sw" style="border-color:#34d399"></span>Hijau: Sudah sanksi</div>
+      <div class="lg"><span class="sw" style="border-color:#60a5fa"></span>Biru: Proses pengawasan</div>
+      <div class="lg"><span class="sw" style="border-color:#f97316"></span>Oranye: Belum diawasi</div>
       <div class="lg"><span class="sw" style="border-color:#64748b;background:#64748b"></span>Warna isi: UPT penanggung jawab</div></div>
     <div class="legend-sec"><h5>Stasiun PSDKP</h5>${list('STASIUN')}</div>
     <div class="legend-sec"><h5>Pangkalan PSDKP</h5>${list('PANGKALAN')}</div>
     <div class="legend-sec"><h5>Kepadatan Hotspot (Solid Blur)</h5><div class="heat-bar"></div>
       <div class="heat-lbl"><span>Rendah</span><span>Sedang</span><span>Tinggi</span></div>
-      <div class="heat-ranges"><span>5–10 titik</span><span>10–15 titik</span><span>&gt;15 titik</span></div>
-      <div style="font-size:.64rem;color:var(--muted);margin-top:5px">Hanya muncul di wilayah dengan minimal 5 titik</div></div>`;
+      <div class="heat-ranges"><span>5–10 titik</span><span>10–15 titik</span><span>&gt;15 titik</span></div></div>`;
   L.DomEvent.disableClickPropagation(wrap);
   L.DomEvent.disableScrollPropagation(panel);
   btn.addEventListener('click', () => {
@@ -317,4 +303,29 @@ legend.onAdd = () => {
 };
 legend.addTo(map);
 
-render();
+async function initApp() {
+  if (typeof toast === 'function') toast("Memuat data dari Google Sheets...", false, 0);
+  
+  const fetchedData = await loadSheetData();
+  window.rawData = fetchedData;
+  
+  data = fetchedData.map((d, i) => ({
+    ...d,
+    _id: i,
+    lat: +d.lat,
+    lng: +d.lng,
+    _ok: validCoord(d),
+    _hay: `${d.nama} ${d.lokasi} ${d.indikasi}`.toLowerCase()
+  }));
+
+  const fUpt = $('f-upt');
+  fUpt.innerHTML = '<option value="">Semua UPT</option>';
+  [...new Set(data.map(d => d.upt).filter(Boolean))].sort().forEach(u => {
+    const o = document.createElement('option'); o.value = u; o.textContent = u; fUpt.appendChild(o);
+  });
+
+  if (typeof toast === 'function') toast("Data berhasil dimuat dari Spreadsheet!");
+  render();
+}
+
+initApp();

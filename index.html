@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:,">
 </head>
 <body>
 
@@ -24,9 +25,9 @@
 
   <div class="sb-body">
     <div class="stats" aria-live="polite">
-      <div class="stat"><b id="n-total">0</b><span>Total titik</span></div>
-      <div class="stat"><b id="n-ok" style="color:var(--ok)">0</b><span>Sudah diawasi</span></div>
-      <div class="stat"><b id="n-no" style="color:var(--warn)">0</b><span>Belum diawasi</span></div>
+      <div class="stat"><b id="n-sudah" style="color:#34d399">0</b><span>Sudah Sanksi</span></div>
+      <div class="stat"><b id="n-proses" style="color:#60a5fa">0</b><span>Proses</span></div>
+      <div class="stat"><b id="n-belum" style="color:#f97316">0</b><span>Belum</span></div>
     </div>
     <div class="progress" aria-hidden="true"><i id="bar"></i></div>
     <div class="progress-note" id="bar-note"></div>
@@ -42,9 +43,10 @@
     </div>
     <div class="field">
       <label id="lbl-status">Status pengawasan</label>
-      <div class="seg" role="group" aria-labelledby="lbl-status" id="f-status">
+      <div class="seg" role="group" aria-labelledby="lbl-status" id="f-status" style="grid-template-columns: repeat(3, 1fr);">
         <button type="button" data-v="" aria-pressed="true">Semua</button>
-        <button type="button" data-v="Sudah diawasi" aria-pressed="false">Sudah</button>
+        <button type="button" data-v="Sudah penetapan sanksi" aria-pressed="false">Sudah Sanksi</button>
+        <button type="button" data-v="Masih proses pengawasan" aria-pressed="false">Proses</button>
         <button type="button" data-v="Belum diawasi" aria-pressed="false">Belum</button>
       </div>
     </div>
