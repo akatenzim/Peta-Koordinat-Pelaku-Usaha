@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebGIS Hotspot Pengawasan Dit. PSDKP</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<aside id="sidebar" aria-label="Filter dan daftar lokasi">
+  <div class="sb-head">
+    <div>
+      <h1><i class="fa-solid fa-map-location-dot"></i> WebGIS Hotspot PSDKP</h1>
+      <p>Visualisasi pengawasan Dit. PSDK</p>
+    </div>
+    <button class="icon-btn" id="sb-close" aria-label="Tutup panel"><i class="fa-solid fa-chevron-left"></i></button>
+  </div>
+
+  <div class="sb-body">
+    <div class="stats" aria-live="polite">
+      <div class="stat"><b id="n-total">0</b><span>Total titik</span></div>
+      <div class="stat"><b id="n-ok" style="color:var(--ok)">0</b><span>Sudah diawasi</span></div>
+      <div class="stat"><b id="n-no" style="color:var(--warn)">0</b><span>Belum diawasi</span></div>
+    </div>
+    <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+    <div class="progress-note" id="bar-note"></div>
+
+    <div class="field">
+      <label for="q">Cari pelaku usaha, lokasi, atau indikasi</label>
+      <input id="q" class="control" type="search" placeholder="Ketik untuk mencari…" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="f-upt">UPT PSDKP</label>
+      <select id="f-upt" class="control"><option value="">Semua UPT</option></select>
+      <div id="upt-pelaku-info" style="font-size:0.75rem;color:var(--muted);margin-top:6px;">Total Pelaku Usaha: <span id="n-upt-pelaku" style="font-weight:700;color:var(--accent)">0</span></div>
+    </div>
+    <div class="field">
+      <label id="lbl-status">Status pengawasan</label>
+      <div class="seg" role="group" aria-labelledby="lbl-status" id="f-status">
+        <button type="button" data-v="" aria-pressed="true">Semua</button>
+        <button type="button" data-v="Sudah diawasi" aria-pressed="false">Sudah</button>
+        <button type="button" data-v="Belum diawasi" aria-pressed="false">Belum</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <span class="list-head">Daftar lokasi (<span id="n-show">0</span>)</span>
+      <button class="link-btn" id="reset" type="button">Reset filter</button>
+    </div>
+    <ul id="data-list"></ul>
+  </div>
+</aside>
+
+<main id="map-wrap">
+  <button class="icon-btn" id="sb-open" type="button"><i class="fa-solid fa-sliders"></i> Filter</button>
+  <div id="map"></div>
+  <div id="toast" role="status"></div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+<script src="data.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
