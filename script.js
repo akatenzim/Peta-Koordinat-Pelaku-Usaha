@@ -17,7 +17,7 @@ const titleCase = s => s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).re
 
 let toastTimer;
 function toast(msg, err = false, ms = 3500) {
-  const t = $('toast'); t.textContent = msg; t.className = 'show' + (err ? ' err' : '');
+  const t = $('toast'); if (!t) return; t.textContent = msg; t.className = 'show' + (err ? ' err' : '');
   clearTimeout(toastTimer); if (ms) toastTimer = setTimeout(() => t.className = '', ms);
 }
 
@@ -54,13 +54,13 @@ function updateHeatmapOptions() {
 
 map.on('zoomend', updateHeatmapOptions);
 
-const clusterGroup = L.markerClusterGroup({ chunkedLoading: true, showCoverageOnHover: false, maxClusterRadius: 50 }).addTo(map);
+const pointsGroup = L.layerGroup().addTo(map);
 const garpanGroup = L.layerGroup();
 const uptGroup = L.layerGroup();
 
 L.control.layers(baseMaps, {
   '🔥 Hotspot / Heatmap Kepadatan': heatGroup,
-  '📍 Pengelompokan titik (Cluster)': clusterGroup,
+  '📍 Titik Lokasi Pengawasan': pointsGroup,
   '🏝️ Garis Pantai Indonesia (Garpan)': garpanGroup,
   '🏢 Wilayah UPT PSDKP': uptGroup
 }, { position: 'topright', collapsed: window.innerWidth <= 768 }).addTo(map);
@@ -85,14 +85,10 @@ const loaders = {};
 function loadGeo(key, url, group, label, makeLayer) {
   if (loaders[key]) return;
   loaders[key] = true;
-  toast(`Memuat ${label}…`, false, 0);
   fetch(url)
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(resData => { group.addLayer(makeLayer(resData)); toast(`${label} berhasil dimuat`); })
-    .catch(e => {
-      console.error(e); loaders[key] = false;
-      toast(`${label} gagal dimuat (${e.message}).`, true, 6000);
-    });
+    .then(resData => { group.addLayer(makeLayer(resData)); })
+    .catch(e => { console.error(e); loaders[key] = false; });
 }
 
 const loadGarpan = () => loadGeo('garpan', 'garpan_web_simplified_05.geojson', garpanGroup, 'Garis pantai',
@@ -118,17 +114,17 @@ let filtered = [], shown = 0;
 const markers = new Map();
 
 function getStatusBadgeClass(status) {
-  const s = status.toLowerCase();
+  const s = String(status).toLowerCase();
   if (s.includes('sudah')) return 'b-ok';
   if (s.includes('proses')) return 'b-process';
   return 'b-no';
 }
 
 function getStatusRingColor(status) {
-  const s = status.toLowerCase();
-  if (s.includes('sudah')) return '#34d399'; // Hijau
-  if (s.includes('proses')) return '#60a5fa'; // Biru
-  return '#f97316'; // Oranye
+  const s = String(status).toLowerCase();
+  if (s.includes('sudah')) return '#34d399';
+  if (s.includes('proses')) return '#60a5fa';
+  return '#f97316';
 }
 
 function makeMarker(d) {
@@ -149,13 +145,16 @@ function makeMarker(d) {
 
 function renderList(reset) {
   const ul = $('data-list');
+  if (!ul) return;
   if (reset) { ul.innerHTML = ''; shown = 0; }
-  ul.querySelector('.more-li')?.remove();
+  const moreLi = ul.querySelector('.more-li');
+  if (moreLi) moreLi.remove();
 
   if (!filtered.length) {
-    ul.innerHTML = `<li class="empty">${data.length ? 'Tidak ada lokasi yang cocok.' : 'Memuat data atau data kosong.'}</li>`;
+    ul.innerHTML = `<li class="empty">${data.length ? 'Tidak ada lokasi yang cocok.' : 'Memuat data...'}</li>`;
     return;
   }
+  
   const frag = document.createDocumentFragment();
   filtered.slice(shown, shown + PAGE).forEach(d => {
     const li = document.createElement('li');
@@ -169,6 +168,7 @@ function renderList(reset) {
   });
   shown = Math.min(shown + PAGE, filtered.length);
   ul.appendChild(frag);
+  
   if (shown < filtered.length) {
     const li = document.createElement('li'); li.className = 'more-li';
     li.innerHTML = `<button class="more" type="button">Muat lebih banyak (${filtered.length - shown} tersisa)</button>`;
@@ -178,23 +178,32 @@ function renderList(reset) {
 
 function render() {
   const q = state.q.trim().toLowerCase();
-  filtered = data.filter(d => {
-    const matchQ = !q || d._hay.includes(q);
-    const matchUpt = !state.upt || d.upt === state.upt;
+  
+  // HANYA AMBIL DATA YANG MEMILIKI KOORDINAT VALID (_ok === true)
+  const validData = data.filter(d => d._ok);
+
+  filtered = validData.filter(d => {
+    const matchQ = !q || (d.nama + ' ' + d.lokasi + ' ' + d.indikasi).toLowerCase().includes(q);
+    const matchUpt = !state.upt || String(d.upt).trim().toUpperCase() === String(state.upt).trim().toUpperCase();
+    
     let matchStatus = true;
     if (state.status) {
-      matchStatus = d.status.toLowerCase().includes(state.status.toLowerCase());
+      matchStatus = String(d.status).toLowerCase().includes(state.status.toLowerCase());
     }
     return matchQ && matchUpt && matchStatus;
   });
 
-  const plotted = filtered.filter(d => d._ok);
-  clusterGroup.clearLayers(); markers.clear();
-  const ms = plotted.map(d => { const m = makeMarker(d); markers.set(d._id, m); return m; });
-  clusterGroup.addLayers(ms);
+  pointsGroup.clearLayers(); 
+  markers.clear();
+  
+  filtered.forEach(d => {
+    const m = makeMarker(d);
+    markers.set(d._id, m);
+    pointsGroup.addLayer(m);
+  });
 
   const cellMap = new Map();
-  plotted.forEach(d => {
+  filtered.forEach(d => {
     const cx = Math.floor((d.lng * 111.32) / 15);
     const cy = Math.floor((d.lat * 110.574) / 15);
     const key = `${cx},${cy}`;
@@ -221,24 +230,29 @@ function render() {
   redHeatLayer.setLatLngs(redPoints);
   updateHeatmapOptions();
 
-  const countSudah = filtered.filter(d => d.status.toLowerCase().includes('sudah')).length;
-  const countProses = filtered.filter(d => d.status.toLowerCase().includes('proses')).length;
-  const countBelum = filtered.filter(d => d.status.toLowerCase().includes('belum')).length;
+  const countSudah = filtered.filter(d => String(d.status).toLowerCase().includes('sudah')).length;
+  const countProses = filtered.filter(d => String(d.status).toLowerCase().includes('proses')).length;
+  const countBelum = filtered.filter(d => String(d.status).toLowerCase().includes('belum')).length;
 
-  // Update nilai pada card statistik baru
-  if ($('n-sudah')) $('n-sudah').textContent = countSudah;
-  if ($('n-proses')) $('n-proses').textContent = countProses;
-  if ($('n-belum')) $('n-belum').textContent = countBelum;
+  if ($('n-sudah'))$('n-sudah').textContent = countSudah;
+  if ($('n-proses'))$('n-proses').textContent = countProses;
+  if ($('n-belum'))$('n-belum').textContent = countBelum;
 
-  $('n-show').textContent = filtered.length;
+  if ($('n-total'))$('n-total').textContent = filtered.length;
+  if ($('n-show'))$('n-show').textContent = filtered.length;
+  
+  const headerListLbl = document.querySelector('.list-head');
+  if (headerListLbl) headerListLbl.textContent = `Daftar lokasi (${filtered.length})`;
 
-  const uptCountData = data.filter(d => !state.upt || d.upt === state.upt);
-  $('n-upt-pelaku').textContent = uptCountData.length;
+  const uptCountData = validData.filter(d => !state.upt || String(d.upt).trim().toUpperCase() === String(state.upt).trim().toUpperCase());
+  if ($('n-upt-pelaku'))$('n-upt-pelaku').textContent = uptCountData.length;
 
   const pct = filtered.length ? Math.round((countSudah / filtered.length) * 100) : 0;
-  $('bar').style.width = pct + '%';
-  const skipped = filtered.length - plotted.length;
-  $('bar-note').textContent = filtered.length ? `${pct}% sudah penetapan sanksi${skipped ? ` · ${skipped} titik tanpa koordinat valid` : ''}` : '';
+  if ($('bar'))$('bar').style.width = pct + '%';
+  
+  if ($('bar-note')) {$('bar-note').textContent = filtered.length ? `${pct}% sudah penetapan sanksi dari total titik valid` : '';
+  }
+  
   renderList(true);
 }
 
@@ -246,7 +260,8 @@ function focusItem(id) {
   const d = data.find(item => item._id === id), m = markers.get(id);
   if (!d || !m) { toast('Titik ini tidak memiliki koordinat valid.', true); return; }
   if (innerWidth <= 768) closeSidebar();
-  clusterGroup.zoomToShowLayer(m, () => { map.setView([d.lat, d.lng], Math.max(map.getZoom(), 12)); m.openPopup(); });
+  map.setView([d.lat, d.lng], Math.max(map.getZoom(), 12));
+  m.openPopup();
 }
 
 let deb;
@@ -304,8 +319,6 @@ legend.onAdd = () => {
 legend.addTo(map);
 
 async function initApp() {
-  if (typeof toast === 'function') toast("Memuat data dari Google Sheets...", false, 0);
-  
   const fetchedData = await loadSheetData();
   window.rawData = fetchedData;
   
@@ -319,12 +332,13 @@ async function initApp() {
   }));
 
   const fUpt = $('f-upt');
-  fUpt.innerHTML = '<option value="">Semua UPT</option>';
-  [...new Set(data.map(d => d.upt).filter(Boolean))].sort().forEach(u => {
-    const o = document.createElement('option'); o.value = u; o.textContent = u; fUpt.appendChild(o);
-  });
+  if (fUpt) {
+    fUpt.innerHTML = '<option value="">Semua UPT</option>';
+    [...new Set(data.map(d => d.upt).filter(Boolean))].sort().forEach(u => {
+      const o = document.createElement('option'); o.value = u; o.textContent = u; fUpt.appendChild(o);
+    });
+  }
 
-  if (typeof toast === 'function') toast("Data berhasil dimuat dari Spreadsheet!");
   render();
 }
 

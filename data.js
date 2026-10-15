@@ -39,7 +39,7 @@ async function loadSheetData() {
         lokasi: rowObj.lokasi || "-",
         indikasi: (rowObj.indikasipelanggaran || rowObj.indikasi || "-").replace(/\\n/g, '\n'),
         upt: rowObj.uptpsdkp || rowObj.upt || "-",
-        status: statusVal,
+        status: rowObj.tlpengawasan || rowObj.status || "Belum diawasi",
         kegiatan: rowObj.bentukkegiatan || rowObj.kegiatan || "-",
         lat: latVal,
         lng: lngVal
